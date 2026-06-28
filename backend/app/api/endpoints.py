@@ -9,6 +9,7 @@ from app.engine.cloner import RepoCloner
 from app.engine.parser import RepoParser
 from app.core.tools import ToolRegistry
 from app.agents.orchestrator import AgentOrchestrator
+from app.agents.chat import ChatAgent
 from app.core.config import settings
 
 router = APIRouter()
@@ -72,6 +73,24 @@ async def analyze_repo(request: AnalysisRequest):
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    # Basic implementation: In a real scenario, this would use a dedicated ChatAgent
-    # that utilizes the ToolRegistry and Knowledge Graph.
-    return {"response": f"I've analyzed {request.repo_name}. How can I help you with the code?"}
+    try:
+        repo_name = request.repo_name
+        # Recover Knowledge Graph for the repo
+        from app.core.config import settings
+        from app.engine.parser import RepoParser
+        from app.core.tools import ToolRegistry
+        
+        repo_path = settings.REPOS_DIR / repo_name
+        if not repo_path.exists():
+            raise HTTPException(status_code=404, detail="Repository not found in storage")
+            
+        parser = RepoParser(repo_path)
+        graph = parser.parse()
+        tools = ToolRegistry(repo_name, graph)
+        
+        chat_agent = ChatAgent("chat_bot", tools)
+        result = await chat_agent.run({"repo_name": repo_name, "message": request.message})
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -121,34 +121,53 @@ export default function Dashboard() {
           <AgentCard id="summary" title="Executive Summary" data={state.agents.summary} />
         </div>
 
-        <div className="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 min-h-[400px] flex flex-col">
-            <div className="flex items-center gap-2 mb-4 text-slate-400">
-              <Globe className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Repository Graph</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 min-h-[400px] flex flex-col">
+              <div className="flex items-center gap-2 mb-4 text-slate-400">
+                <Globe className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Repository Graph</span>
+              </div>
+              <div className="flex-1 border-2 border-dashed border-slate-800 rounded-xl flex items-center justify-center text-slate-600 text-sm">
+                {state.repoName ? `Interactive Graph for ${state.repoName} would render here` : 'Analyze a repository to generate the graph'}
+              </div>
             </div>
-            <div className="flex-1 border-2 border-dashed border-slate-800 rounded-xl flex items-center justify-center text-slate-600 text-sm">
-              {state.repoName ? `Interactive Graph for ${state.repoName} would render here` : 'Analyze a repository to generate the graph'}
+            
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 flex flex-col">
+              <div className="flex items-center gap-2 mb-4 text-slate-400">
+                <Terminal className="w-4 h-4" />
+                <span className="text-xs font-bold uppercase tracking-wider">Intelligence Chat</span>
+              </div>
+              <div className="flex-1 space-y-4 overflow-y-auto text-xs text-slate-500 mb-4">
+                <div className="p-2 bg-slate-800/50 rounded">System: Ready to analyze.</div>
+                {/* Chat messages would be mapped here */}
+              </div>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Ask about the repo..." 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600"
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      const msg = e.currentTarget.value;
+                      e.currentTarget.value = '';
+                      if (!state.repoName) return;
+                      
+                      try {
+                        const res = await axios.post(`${API_BASE}/chat`, {
+                          repo_name: state.repoName,
+                          message: msg
+                        });
+                        // In a full UI, we'd add this to a state list of messages
+                        alert(`AI Response: ${res.data.response}`);
+                      } catch (err) {
+                        console.error("Chat error", err);
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
-          
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 flex flex-col">
-            <div className="flex items-center gap-2 mb-4 text-slate-400">
-              <Terminal className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Intelligence Chat</span>
-            </div>
-            <div className="flex-1 space-y-4 overflow-y-auto text-xs text-slate-500 mb-4">
-              <div className="p-2 bg-slate-800/50 rounded">System: Ready to analyze.</div>
-            </div>
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="Ask about the repo..." 
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600"
-              />
-            </div>
-          </div>
-        </div>
       </main>
     </div>
   );
