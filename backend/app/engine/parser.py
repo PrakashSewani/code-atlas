@@ -52,8 +52,12 @@ class RepoParser:
         Extracts classes and functions from files. 
         Using simplified regex for initial implementation.
         """
-        for entity_id, entity in self.graph.entities.items():
-            if entity.type != "file":
+        # Use a list of keys to avoid "dictionary changed size" error when adding symbols
+        entity_keys = list(self.graph.entities.keys())
+        
+        for entity_id in entity_keys:
+            entity = self.graph.entities.get(entity_id)
+            if not entity or entity.type != "file":
                 continue
                 
             file_path = self.repo_path / entity.path
@@ -119,7 +123,10 @@ class RepoParser:
         """
         Analyzes imports to create relationships between files.
         """
-        for entity_id, entity in self.graph.entities.items():
+        # Create a static list of entities to iterate over to avoid "dictionary changed size" error
+        entities_to_process = list(self.graph.entities.items())
+        
+        for entity_id, entity in entities_to_process:
             if entity.type != "file":
                 continue
                 

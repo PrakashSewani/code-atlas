@@ -77,52 +77,70 @@ class ToolRegistry:
         """Returns JSON definitions for the LLM to use for tool calling."""
         return [
             {
-                "name": "get_repository_tree",
-                "description": "Get the full file tree of the repository",
-                "parameters": {"type": "object", "properties": {}}
-            },
-            {
-                "name": "read_file",
-                "description": "Read the contents of a file by its relative path",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {"path": {"type": "string", "description": "Relative path to the file"}}
-                },
-                "required": ["path"]
-            },
-            {
-                "name": "list_symbols",
-                "description": "List classes and functions in the repository",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {"file_path": {"type": "string", "description": "Optional filter by file path"}}
+                "type": "function",
+                "function": {
+                    "name": "get_repository_tree",
+                    "description": "Get the full file tree of the repository",
+                    "parameters": {"type": "object", "properties": {}}
                 }
             },
             {
-                "name": "find_references",
-                "description": "Find all occurrences of a symbol name across the repo",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {"symbol_name": {"type": "string"}}
-                },
-                "required": ["symbol_name"]
+                "type": "function",
+                "function": {
+                    "name": "read_file",
+                    "description": "Read the contents of a file by its relative path",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {"path": {"type": "string", "description": "Relative path to the file"}},
+                        "required": ["path"]
+                    }
+                }
             },
             {
-                "name": "query_knowledge_graph",
-                "description": "Get detailed context and relationships for a specific entity ID",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {"entity_id": {"type": "string"}}
-                },
-                "required": ["entity_id"]
+                "type": "function",
+                "function": {
+                    "name": "list_symbols",
+                    "description": "List classes and functions in the repository",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {"file_path": {"type": "string", "description": "Optional filter by file path"}}
+                    }
+                }
             },
             {
-                "name": "get_module_summary",
-                "description": "Get a structural summary of a specific file or module",
-                "parameters": {
-                    "type": "object", 
-                    "properties": {"path": {"type": "string"}}
-                },
-                "required": ["path"]
+                "type": "function",
+                "function": {
+                    "name": "find_references",
+                    "description": "Find all occurrences of a symbol name across the repo",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {"symbol_name": {"type": "string"}},
+                        "required": ["symbol_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "query_knowledge_graph",
+                    "description": "Get detailed context and relationships for a specific entity ID",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {"entity_id": {"type": "string"}},
+                        "required": ["entity_id"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_module_summary",
+                    "description": "Get a structural summary of a specific file or module",
+                    "parameters": {
+                        "type": "object", 
+                        "properties": {"path": {"type": "string"}},
+                        "required": ["path"]
+                    }
+                }
             }
         ]

@@ -27,6 +27,7 @@ async def analysis_streamer(repo_url: str) -> AsyncGenerator[str, None]:
     """
     try:
         # 1. Extract repo name and clone
+        repo_url = repo_url.strip()
         repo_name = repo_url.split('/')[-1].replace('.git', '')
         cloner = RepoCloner()
         repo_path = cloner.clone_repository(repo_url, repo_name)
@@ -80,17 +81,23 @@ async def chat(request: ChatRequest):
         from app.engine.parser import RepoParser
         from app.core.tools import ToolRegistry
         
-        repo_path = settings.REPOS_DIR / repo_name
+        # Clean path to avoid potential issues with trailing slashes or spaces
+        repo_name_cleaned = repo_name.strip()
+        repo_path = settings.REPOS_DIR / repo_name_cleaned
+        
         if not repo_path.exists():
-            raise HTTPException(status_code=404, detail="Repository not found in storage")
+            raise HTTPException(status_code=404, detail=f"Repository {repo_name} not found in storage")
             
+        # We must parse it again to reconstruct the graph from the files on disk
         parser = RepoParser(repo_path)
         graph = parser.parse()
-        tools = ToolRegistry(repo_name, graph)
+        tools = ToolRegistry(repo_name_cleaned, graph)
         
         chat_agent = ChatAgent("chat_bot", tools)
-        result = await chat_agent.run({"repo_name": repo_name, "message": request.message})
+        result = await chat_agent.run({"repo_name": repo_name_cleaned, "message": request.message})
         
         return result
     except Exception as e:
+        import traceback
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))

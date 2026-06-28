@@ -17,10 +17,10 @@ class ArchitectureAgent(BaseAgent):
         
         prompt = f"""
         Analyze the architecture of the repository: {repo_name}
-        File Tree: {tree[:100]}
-        Major Symbols: {symbols[:50]}
+        File Tree: {tree[:50]}
+        Major Symbols: {symbols[:30]}
         
-        Evaluate the architecture style, layering, patterns, and identify any structural issues.
+        Provide a concise architectural analysis.
         Return valid JSON matching this schema:
         {{
             "score": number (0-100),
@@ -31,11 +31,12 @@ class ArchitectureAgent(BaseAgent):
             "issues": ["string"],
             "recommendations": ["string"]
         }}
+        Keep descriptions brief to avoid truncation.
         """
         
         response = await client.chat.completions.create(
             model=settings.GEMMA_MODEL,
-            messages=[{"role": "system", "content": "You are a Principal Software Architect. Return ONLY JSON."},
+            messages=[{"role": "system", "content": "You are a Principal Software Architect. Return ONLY JSON. Ensure the JSON is valid and not truncated."},
                       {"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
         )

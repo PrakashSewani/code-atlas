@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Terminal, Activity, Globe, Zap } from 'lucide-react';
+import { Search, Terminal, Activity, Globe, Zap, Shield, Cpu, Package, FileText, Eye, BarChart3, ArrowRight } from 'lucide-react';
 import { AgentCard } from './components/AgentCard';
 import { DashboardState, AgentResult } from './types';
 import axios from 'axios';
@@ -78,25 +78,35 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-6 lg:p-12 font-sans">
-      {/* Header */}
-      <header className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-        <div>
-          <div className="flex items-center gap-2 text-blue-500 mb-2">
-            <Zap className="w-5 h-5 fill-current" />
-            <span className="text-xs font-bold uppercase tracking-widest">Cerebras × Gemma 4</span>
+    <div className="min-h-screen bg-[#0a0c10] text-slate-100 p-6 lg:p-12 font-sans selection:bg-blue-500/30">
+      {/* Background Ambient Glow */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-blue-600/10 blur-[120px] rounded-full" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-indigo-600/10 blur-[120px] rounded-full" />
+      </div>
+
+      <header className="relative z-10 max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-blue-500 mb-1">
+            <Zap className="w-4 h-4 fill-current" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Cerebras × Gemma 4</span>
           </div>
-          <h1 className="text-4xl font-black tracking-tighter md:text-6xl">CODEATLAS<span className="text-blue-600"> AI</span></h1>
-          <p className="text-slate-400 mt-2 max-w-md">Your AI Engineering Team for Any Repository. High-fidelity intelligence in seconds.</p>
+          <h1 className="text-5xl font-black tracking-tighter md:text-7xl text-white">
+            CODEATLAS<span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-400"> AI</span>
+          </h1>
+          <p className="text-slate-500 text-sm md:text-base max-w-md leading-relaxed">
+            Enterprise-grade engineering intelligence. Orchestrating parallel AI specialists for instant repository auditing.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <div className="flex items-center gap-3 w-full md:w-auto group">
+          <div className="relative flex-1 md:w-96">
+            <div className="absolute inset-0 bg-blue-600/20 blur-sm rounded-xl opacity-0 group-focus-within:opacity-100 transition-opacity" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
             <input 
               type="text" 
-              placeholder="github.com/user/repo" 
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+              placeholder="Enter GitHub repository URL..." 
+              className="relative w-full bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-xl py-3 pl-11 pr-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
             />
@@ -104,70 +114,80 @@ export default function Dashboard() {
           <button 
             onClick={startAnalysis}
             disabled={isAnalyzing}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 whitespace-nowrap"
+            className="relative overflow-hidden bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all active:scale-95 whitespace-nowrap shadow-lg shadow-blue-600/20"
           >
-            {isAnalyzing ? 'Analyzing...' : 'Analyze Repo'}
+            <span className="relative z-10 flex items-center gap-2">
+              {isAnalyzing ? 'Analyzing...' : 'Initialize Scan'}
+              {!isAnalyzing && <ArrowRight className="w-4 h-4" />}
+            </span>
           </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto">
+      <main className="relative z-10 max-w-7xl mx-auto space-y-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AgentCard id="architecture" title="Architecture" data={state.agents.architecture} />
-          <AgentCard id="security" title="Security" data={state.agents.security} />
-          <AgentCard id="performance" title="Performance" data={state.agents.performance} />
-          <AgentCard id="dependency" title="Dependencies" data={state.agents.dependency} />
-          <AgentCard id="vision" title="Vision Alignment" data={state.agents.vision} />
-          <AgentCard id="summary" title="Executive Summary" data={state.agents.summary} />
+          <AgentCard id="architecture" title="Architecture" icon={Cpu} data={state.agents.architecture} />
+          <AgentCard id="security" title="Security" icon={Shield} data={state.agents.security} />
+          <AgentCard id="performance" title="Performance" icon={Activity} data={state.agents.performance} />
+          <AgentCard id="dependency" title="Dependencies" icon={Package} data={state.agents.dependency} />
+          <AgentCard id="vision" title="Vision Alignment" icon={Eye} data={state.agents.vision} />
+          <AgentCard id="summary" title="Executive Summary" icon={BarChart3} data={state.agents.summary} />
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-2xl p-6 min-h-[400px] flex flex-col">
-              <div className="flex items-center gap-2 mb-4 text-slate-400">
-                <Globe className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Repository Graph</span>
-              </div>
-              <div className="flex-1 border-2 border-dashed border-slate-800 rounded-xl flex items-center justify-center text-slate-600 text-sm">
-                {state.repoName ? `Interactive Graph for ${state.repoName} would render here` : 'Analyze a repository to generate the graph'}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 group relative bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-3xl p-8 flex flex-col transition-all hover:border-blue-500/30 overflow-hidden">
+            <div className="flex items-center gap-2 mb-6 text-slate-400">
+              <Globe className="w-5 h-5 text-blue-500" />
+              <span className="text-xs font-black uppercase tracking-widest">Repository Intelligence Graph</span>
             </div>
-            
-            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 flex flex-col">
-              <div className="flex items-center gap-2 mb-4 text-slate-400">
-                <Terminal className="w-4 h-4" />
-                <span className="text-xs font-bold uppercase tracking-wider">Intelligence Chat</span>
-              </div>
-              <div className="flex-1 space-y-4 overflow-y-auto text-xs text-slate-500 mb-4">
-                <div className="p-2 bg-slate-800/50 rounded">System: Ready to analyze.</div>
-                {/* Chat messages would be mapped here */}
-              </div>
-              <div className="relative">
-                <input 
-                  type="text" 
-                  placeholder="Ask about the repo..." 
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2 px-3 text-xs focus:outline-none focus:ring-1 focus:ring-blue-600"
-                  onKeyDown={async (e) => {
-                    if (e.key === 'Enter') {
-                      const msg = e.currentTarget.value;
-                      e.currentTarget.value = '';
-                      if (!state.repoName) return;
-                      
-                      try {
-                        const res = await axios.post(`${API_BASE}/chat`, {
-                          repo_name: state.repoName,
-                          message: msg
-                        });
-                        // In a full UI, we'd add this to a state list of messages
-                        alert(`AI Response: ${res.data.response}`);
-                      } catch (err) {
-                        console.error("Chat error", err);
-                      }
-                    }
-                  }}
-                />
-              </div>
+            <div className="flex-1 border-2 border-dashed border-slate-800/60 rounded-2xl flex items-center justify-center text-slate-600 text-sm italic bg-slate-950/50 relative">
+              {state.repoName ? (
+                <div className="text-center space-y-2">
+                  <p className="text-slate-300 font-medium">Graph visualization for {state.repoName}</p>
+                  <p className="text-xs opacity-50">Rendering interactive node relationships...</p>
+                </div>
+              ) : (
+                <p>Analyze a repository to initialize the knowledge graph</p>
+              )}
             </div>
           </div>
+          
+          <div className="group relative bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-3xl p-8 flex flex-col transition-all hover:border-blue-500/30">
+            <div className="flex items-center gap-2 mb-6 text-slate-400">
+              <Terminal className="w-5 h-5 text-blue-500" />
+              <span className="text-xs font-black uppercase tracking-widest">Intelligence Chat</span>
+            </div>
+            <div className="flex-1 space-y-4 overflow-y-auto text-xs text-slate-500 mb-6 pr-2 custom-scrollbar">
+              <div className="p-3 bg-slate-800/50 rounded-2xl rounded-tl-none border border-slate-700/50 text-slate-300">
+                Hello! I'm the CodeAtlas Lead Engineer. Once the scan is complete, I can answer any technical question about this repository using real-time code analysis.
+              </div>
+            </div>
+            <div className="relative mt-auto">
+              <input 
+                type="text" 
+                placeholder="Query codebase..." 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600/50 transition-all"
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    const msg = e.currentTarget.value;
+                    e.currentTarget.value = '';
+                    if (!state.repoName) return;
+                    
+                    try {
+                      const res = await axios.post(`${API_BASE}/chat`, {
+                        repo_name: state.repoName,
+                        message: msg
+                      });
+                      alert(`AI Response: ${res.data.response}`);
+                    } catch (err) {
+                      console.error("Chat error", err);
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );

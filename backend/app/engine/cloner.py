@@ -45,6 +45,9 @@ class RepoCloner:
         ]
         
         for item in repo_path.rglob("*"):
-            if item.is_dir() and item.name in ignore_list:
-                shutil.rmtree(item)
-                logger.info(f"Cleaned: {item}")
+            try:
+                if item.is_dir() and item.name in ignore_list:
+                    shutil.rmtree(item, ignore_errors=True)
+                    logger.info(f"Cleaned: {item}")
+            except Exception as e:
+                logger.warning(f"Could not clean {item}: {e}")
