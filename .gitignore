@@ -1,0 +1,14 @@
+
+# Git Ignore
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+venv/
+ENV/
+dist/
+build/
+.git/
+.DS_Store
