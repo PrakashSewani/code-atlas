@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Terminal, Globe, Zap, Shield, Cpu, Package, Eye, BarChart3, ArrowRight } from 'lucide-react';
+import { Search, Terminal, Globe, Zap, Shield, Cpu, Package, Eye, BarChart3, ArrowRight, Activity } from 'lucide-react';
 import { AgentCard } from './components/AgentCard';
 import type { DashboardState } from './types';
 import axios from 'axios';
