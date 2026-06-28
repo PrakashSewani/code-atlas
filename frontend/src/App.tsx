@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Terminal, Activity, Globe, Zap, Shield, Cpu, Package, FileText, Eye, BarChart3, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Search, Terminal, Globe, Zap, Shield, Cpu, Package, Eye, BarChart3, ArrowRight } from 'lucide-react';
 import { AgentCard } from './components/AgentCard';
-import { DashboardState, AgentResult } from './types';
+import type { DashboardState } from './types';
 import axios from 'axios';
 
 const API_BASE = 'http://localhost:8000/api/v1';

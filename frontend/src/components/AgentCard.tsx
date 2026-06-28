@@ -1,8 +1,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle2, Loader2, AlertCircle, Zap, Shield, Cpu, Package, FileText, Eye, BarChart3 } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { AgentResult } from '../types';
+import type { AgentResult } from '../types';
+
 
 interface AgentCardProps {
   id: string;
