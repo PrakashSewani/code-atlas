@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+gitpython
+pydantic
+pydantic-settings
+networkx
+tree-sitter
+openai
+python-multipart
+aiofiles
