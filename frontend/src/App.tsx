@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Terminal, Activity, Globe, Zap } from 'lucide-react';
 import { AgentCard } from './components/AgentCard';
 import { DashboardState, AgentResult } from './types';
+import axios from 'axios';
+
+const API_BASE = 'http://localhost:8000/api/v1';
 
 export default function Dashboard() {
   const [repoUrl, setRepoUrl] = useState('');
@@ -24,46 +27,54 @@ export default function Dashboard() {
     if (!repoUrl) return;
     setIsAnalyzing(true);
     
-    // Mocking the streaming updates from the backend for the UI demo
-    const agents = Object.keys(state.agents);
-    
-    // 1. Planner start
-    setState(prev => ({
-      ...prev,
-      repoName: repoUrl.split('/').pop() || 'repository',
-      agents: { ...prev.agents, planner: { status: 'in_progress' } }
-    }));
-    
-    await new Promise(r => setTimeout(r, 800));
-    setState(prev => ({
-      ...prev,
-      agents: { ...prev.agents, planner: { status: 'completed' } }
-    }));
+    try {
+      const response = await fetch(`${API_BASE}/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: repoUrl })
+      });
 
-    // 2. Parallel Agents
-    const runAgent = async (id: string, delay: number, mockScore: number) => {
-      setState(prev => ({ ...prev, agents: { ...prev.agents, [id]: { status: 'in_progress' } } }));
-      await new Promise(r => setTimeout(r, delay));
-      setState(prev => ({ 
-        ...prev, 
-        agents: { ...prev.agents, [id]: { status: 'completed', result: { score: mockScore, findings: [] } } } 
-      }));
-    };
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-    await Promise.all([
-      runAgent('architecture', 1200, 88),
-      runAgent('security', 2000, 72),
-      runAgent('performance', 1500, 91),
-      runAgent('dependency', 1000, 84),
-      runAgent('vision', 2500, 95),
-    ]);
+      if (!reader) return;
 
-    // 3. Summary
-    setState(prev => ({ ...prev, agents: { ...prev.agents, summary: { status: 'in_progress' } } }));
-    await new Promise(r => setTimeout(r, 1000));
-    setState(prev => ({ ...prev, agents: { ...prev.agents, summary: { status: 'completed', result: { score: 86 } } } }));
-    
-    setIsAnalyzing(false);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(6));
+            if (data.error) {
+              console.error("Analysis error:", data.error);
+              continue;
+            }
+            
+            const agentId = data.agent_id;
+            setState(prev => ({
+              ...prev,
+              repoName: prev.repoName || repoUrl.split('/').pop()?.replace('.git', '') || 'repository',
+              agents: {
+                ...prev.agents,
+                [agentId]: { 
+                  status: data.status, 
+                  result: data.result,
+                  error: data.error 
+                }
+              }
+            }));
+          }
+        }
+      }
+    } catch (err) {
+      console.error("SSE Error:", err);
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
