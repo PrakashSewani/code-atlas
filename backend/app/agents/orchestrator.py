@@ -6,6 +6,7 @@ from app.agents.architecture import ArchitectureAgent
 from app.agents.security import SecurityAgent
 from app.agents.performance import PerformanceAgent
 from app.agents.dependency import DependencyAgent
+from app.agents.vision import VisionAgent
 from app.core.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,8 @@ class AgentOrchestrator:
                 "architecture": ArchitectureAgent,
                 "security": SecurityAgent,
                 "performance": PerformanceAgent,
-                "dependency": DependencyAgent
+                "dependency": DependencyAgent,
+                "vision": VisionAgent
             }
             
             agent_cls = agent_map.get(agent_id)
