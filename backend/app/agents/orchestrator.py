@@ -2,7 +2,10 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 from app.agents.planner import PlannerAgent
-from app.agents.base import BaseAgent
+from app.agents.architecture import ArchitectureAgent
+from app.agents.security import SecurityAgent
+from app.agents.performance import PerformanceAgent
+from app.agents.dependency import DependencyAgent
 from app.core.tools import ToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -46,13 +49,24 @@ class AgentOrchestrator:
         try:
             await update_callback(agent_id, {"status": "in_progress"})
             
-            # Mocking the actual agent execution for now 
-            # (Actual specialist agents implemented in next phase)
-            await asyncio.sleep(1.5) 
+            # Map agent IDs to actual classes
+            agent_map = {
+                "architecture": ArchitectureAgent,
+                "security": SecurityAgent,
+                "performance": PerformanceAgent,
+                "dependency": DependencyAgent
+            }
             
-            result = {"score": 85, "findings": ["Example finding for " + agent_id]}
+            agent_cls = agent_map.get(agent_id)
+            if not agent_cls:
+                # Fallback for agents not yet implemented or misspelled
+                await asyncio.sleep(1)
+                result = {"score": 0, "message": "Agent not implemented yet"}
+            else:
+                agent = agent_cls(agent_id, self.tools)
+                result = await agent.run({"repo_name": self.repo_name})
+            
             self.results[agent_id] = result
-            
             await update_callback(agent_id, {"status": "completed", "result": result})
         except Exception as e:
             logger.error(f"Agent {agent_id} failed: {e}")
