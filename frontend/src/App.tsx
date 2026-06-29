@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Globe, Zap, Shield, Cpu, Package, Eye, BarChart3, Activity, FileCode, GitBranch, Layers } from 'lucide-react';
 import { Button } from './components/ui/Button';
 import { LandingPage } from './pages/LandingPage';
@@ -10,6 +10,7 @@ import { EngineeringChat } from './components/EngineeringChat';
 import { ActivityFeed } from './components/ActivityFeed';
 import { AnalysisLoader } from './components/AnalysisLoader';
 import { GlobalSearch } from './components/GlobalSearch';
+import { useGuidedTour } from './hooks/useGuidedTour';
 import type { DashboardState, AgentData } from './types';
 import axios from 'axios';
 import { cn } from './lib/utils';
@@ -47,7 +48,6 @@ function extractStats(agents: Record<string, AgentData>) {
     vulnerabilities: 0,
   };
 
-  // Extract from architecture agent
   const arch = agents.architecture;
   if (arch?.result && typeof arch.result === 'object') {
     const r = arch.result as Record<string, unknown>;
@@ -55,7 +55,6 @@ function extractStats(agents: Record<string, AgentData>) {
     if (Array.isArray(r.layers)) stats.services = Math.max(stats.services, r.layers.length);
   }
 
-  // Extract from security agent
   const sec = agents.security;
   if (sec?.result && typeof sec.result === 'object') {
     const r = sec.result as Record<string, unknown>;
@@ -64,7 +63,6 @@ function extractStats(agents: Record<string, AgentData>) {
     stats.vulnerabilities = critical + medium;
   }
 
-  // Extract from dependency agent
   const dep = agents.dependency;
   if (dep?.result && typeof dep.result === 'object') {
     const r = dep.result as Record<string, unknown>;
@@ -73,7 +71,6 @@ function extractStats(agents: Record<string, AgentData>) {
     stats.dependencies = outdated + vulnerable;
   }
 
-  // Extract from performance agent
   const perf = agents.performance;
   if (perf?.result && typeof perf.result === 'object') {
     const r = perf.result as Record<string, unknown>;
@@ -89,6 +86,8 @@ export default function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { startTour, activeStep } = useGuidedTour();
+  const prevSessionCountRef = useRef(0);
   const [state, setState] = useState<DashboardState>({
     repoName: '',
     agents: {
@@ -102,7 +101,6 @@ export default function App() {
     }
   });
 
-  // Calculate health scores from actual agent results
   const healthMetrics = useMemo(() => {
     const scores = {
       architecture: extractScore(state.agents.architecture) ?? 0,
@@ -113,7 +111,6 @@ export default function App() {
       documentation: 0,
     };
 
-    // Calculate testing score from vision agent (structural analysis)
     const vision = state.agents.vision;
     if (vision?.result && typeof vision.result === 'object') {
       const r = vision.result as Record<string, unknown>;
@@ -123,7 +120,6 @@ export default function App() {
       }
     }
 
-    // If no scores yet, return null to show "pending"
     const hasAnyScore = Object.values(scores).some(s => s > 0);
     if (!hasAnyScore) return null;
 
@@ -144,7 +140,6 @@ export default function App() {
     };
   }, [state.agents]);
 
-  // Extract stats from agent results
   const stats = useMemo(() => extractStats(state.agents), [state.agents]);
 
   useEffect(() => {
@@ -168,13 +163,26 @@ export default function App() {
     localStorage.setItem('codeatlas_sessions', JSON.stringify(sessions));
   }, [sessions]);
 
+  // Auto-trigger guided tour on first analysis completion
+  useEffect(() => {
+    if (sessions.length > prevSessionCountRef.current && activeSessionId && !isAnalyzing) {
+      const hasSeenTour = localStorage.getItem('codeatlas_tour_complete');
+      if (!hasSeenTour) {
+        setTimeout(() => {
+          startTour();
+          localStorage.setItem('codeatlas_tour_complete', 'true');
+        }, 400);
+      }
+    }
+    prevSessionCountRef.current = sessions.length;
+  }, [sessions.length, activeSessionId, isAnalyzing, startTour]);
+
   const startAnalysis = async (repoUrl: string) => {
     if (!repoUrl) return;
     setUrl(repoUrl);
     setIsAnalyzing(true);
     const repoName = repoUrl.split('/').pop()?.replace('.git', '') || 'repository';
 
-    // Reset state for new analysis
     setState({
       repoName,
       agents: {
@@ -225,7 +233,6 @@ export default function App() {
         }
       }
 
-      // Calculate final health score from completed agents
       setState(prev => {
         const getScore = (agent: AgentData): number => {
           if (!agent?.result || typeof agent.result !== 'object') return 0;
@@ -239,15 +246,12 @@ export default function App() {
         const vis = getScore(prev.agents.vision);
         const overall = Math.round((arch + sec + perf + dep + vis) / 5) || 85;
 
-        // Check if session already exists for this repo URL
         setSessions(s => {
           const existing = s.find(sess => sess.repoUrl === repoUrl);
           if (existing) {
-            // Update existing session
             setActiveSessionId(existing.id);
             return s.map(sess => sess.id === existing.id ? { ...sess, healthScore: overall, timestamp: Date.now() } : sess);
           }
-          // Create new session only if it doesn't exist
           const sessionId = Date.now().toString();
           setActiveSessionId(sessionId);
           return [{
@@ -266,7 +270,6 @@ export default function App() {
 
     } catch (err) {
       console.error("SSE Error:", err);
-      // Still create a session on error (or update existing)
       setSessions(prev => {
         const existing = prev.find(s => s.repoUrl === repoUrl);
         if (existing) {
@@ -295,9 +298,8 @@ export default function App() {
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
   const completedAgents = Object.values(state.agents).filter(a => a.status === 'completed').length;
-
-  // Format stats for display
   const formatNum = (n: number) => n > 0 ? n.toString() : '-';
+  const isTourOnAgents = activeStep === 'tour-agents';
 
   return (
     <div className="flex h-screen bg-[#0a0c10] text-slate-100 font-sans overflow-hidden">
@@ -314,7 +316,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
         <div className="relative z-10 p-6 space-y-6">
           {/* Header */}
-          <header className="flex items-center justify-between">
+          <header id="tour-header" className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 text-blue-500 mb-1">
                 <Zap className="w-3.5 h-3.5 fill-current" />
@@ -325,12 +327,15 @@ export default function App() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500">{completedAgents}/7 agents complete</span>
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={startTour}>
+                Tour
+              </Button>
               <Button variant="ghost" size="sm" className="h-8 text-xs">Export</Button>
             </div>
           </header>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div id="tour-stats" className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
             <StatCard icon={FileCode} label="Files" value={formatNum(stats.files)} color="bg-blue-500/20 text-blue-400" />
             <StatCard icon={Layers} label="Services" value={formatNum(stats.services)} color="bg-indigo-500/20 text-indigo-400" />
             <StatCard icon={Globe} label="Endpoints" value={formatNum(stats.endpoints)} color="bg-green-500/20 text-green-400" />
@@ -342,7 +347,7 @@ export default function App() {
           {/* Main Content */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left: Health + Activity */}
-            <div className="space-y-6">
+            <div id="tour-health" className="space-y-6">
               {healthMetrics ? (
                 <HealthScore score={healthMetrics.score} metrics={healthMetrics.metrics} />
               ) : (
@@ -355,17 +360,17 @@ export default function App() {
 
             {/* Right: Agent Cards */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <AgentCard id="architecture" title="Architecture" icon={Cpu} data={state.agents.architecture} />
-                <AgentCard id="security" title="Security" icon={Shield} data={state.agents.security} />
-                <AgentCard id="performance" title="Performance" icon={Activity} data={state.agents.performance} />
-                <AgentCard id="dependency" title="Dependencies" icon={Package} data={state.agents.dependency} />
-                <AgentCard id="vision" title="Vision Alignment" icon={Eye} data={state.agents.vision} />
-                <AgentCard id="summary" title="Executive Summary" icon={BarChart3} data={state.agents.summary} />
+              <div id="tour-agents" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AgentCard id="architecture" title="Architecture" icon={Cpu} data={state.agents.architecture} forceExpanded={isTourOnAgents} />
+                <AgentCard id="security" title="Security" icon={Shield} data={state.agents.security} forceExpanded={isTourOnAgents} />
+                <AgentCard id="performance" title="Performance" icon={Activity} data={state.agents.performance} forceExpanded={isTourOnAgents} />
+                <AgentCard id="dependency" title="Dependencies" icon={Package} data={state.agents.dependency} forceExpanded={isTourOnAgents} />
+                <AgentCard id="vision" title="Vision Alignment" icon={Eye} data={state.agents.vision} forceExpanded={isTourOnAgents} />
+                <AgentCard id="summary" title="Executive Summary" icon={BarChart3} data={state.agents.summary} forceExpanded={isTourOnAgents} />
               </div>
 
               {/* Graph */}
-              <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 min-h-[400px] flex flex-col">
+              <div id="tour-graph" className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 min-h-[400px] flex flex-col">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-blue-500" />
@@ -381,7 +386,7 @@ export default function App() {
           </div>
 
           {/* Chat */}
-          <div className="h-[500px]">
+          <div id="tour-chat" className="h-[500px]">
             <EngineeringChat
               repoName={state.repoName}
               onSendMessage={async (msg) => {

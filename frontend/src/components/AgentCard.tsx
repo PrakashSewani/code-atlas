@@ -9,6 +9,7 @@ interface AgentCardProps {
   title: string;
   icon: React.ElementType;
   data: AgentData;
+  forceExpanded?: boolean;
 }
 
 function formatResult(result: unknown): string {
@@ -24,8 +25,9 @@ function formatResult(result: unknown): string {
   return String(result);
 }
 
-export function AgentCard({ title, icon: Icon, data }: AgentCardProps) {
+export function AgentCard({ title, icon: Icon, data, forceExpanded }: AgentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const expanded = forceExpanded || isExpanded;
 
   const statusConfig: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
     pending: { color: 'text-slate-500 bg-slate-800/50', icon: <div className="w-2 h-2 rounded-full bg-slate-600" />, label: 'Pending' },
@@ -40,7 +42,6 @@ export function AgentCard({ title, icon: Icon, data }: AgentCardProps) {
   const isActive = data.status === 'running' || data.status === 'in_progress';
   const resultStr = formatResult(data.result);
 
-  // Extract score from result if available
   let score: number | null = null;
   if (data.result && typeof data.result === 'object') {
     const r = data.result as Record<string, unknown>;
@@ -60,7 +61,7 @@ export function AgentCard({ title, icon: Icon, data }: AgentCardProps) {
         className={cn(
           "relative p-4 rounded-xl border transition-all cursor-pointer overflow-hidden",
           "bg-slate-900/40 border-slate-800 hover:border-slate-700",
-          isExpanded && "border-blue-500/50 shadow-lg shadow-blue-500/5"
+          expanded && "border-blue-500/50 shadow-lg shadow-blue-500/5"
         )}
       >
         {isActive && (
@@ -90,11 +91,11 @@ export function AgentCard({ title, icon: Icon, data }: AgentCardProps) {
               </div>
             </div>
           </div>
-          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
         </div>
 
         <AnimatePresence>
-          {isExpanded && (
+          {expanded && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
