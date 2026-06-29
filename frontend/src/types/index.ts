@@ -1,13 +1,19 @@
-export type AgentStatus = 'pending' | 'in_progress' | 'completed' | 'failed';
+export type AgentStatus = 'pending' | 'in_progress' | 'running' | 'completed' | 'failed' | 'error';
 
-export interface AgentResult {
+export interface AgentData {
   status: AgentStatus;
-  result?: any;
+  result?: unknown;
   error?: string;
 }
 
 export interface DashboardState {
   repoName: string;
-  agents: Record<string, AgentResult>;
-  summary?: any;
+  agents: Record<string, AgentData>;
+}
+
+export interface AgentResult {
+  agent_id: string;
+  status: AgentStatus;
+  result?: unknown;
+  error?: string;
 }
