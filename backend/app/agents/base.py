@@ -11,7 +11,7 @@ class BaseAgent(ABC):
         self.tools = tools
 
     @abstractmethod
-    async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, context: Dict[str, Any], provider: str = "cerebras") -> Dict[str, Any]:
         """
         Executes the agent's specialized analysis.
         Returns a structured JSON result.

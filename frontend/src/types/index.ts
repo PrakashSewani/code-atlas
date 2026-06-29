@@ -4,6 +4,8 @@ export interface AgentData {
   status: AgentStatus;
   result?: unknown;
   error?: string;
+  cerebras?: { status: string; result?: unknown; duration?: number; error?: string };
+  mimo?: { status: string; result?: unknown; duration?: number; error?: string };
 }
 
 export interface DashboardState {

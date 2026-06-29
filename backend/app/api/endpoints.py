@@ -29,34 +29,55 @@ async def analysis_streamer(repo_url: str) -> AsyncGenerator[str, None]:
         # 1. Extract repo name and clone
         repo_url = repo_url.strip()
         repo_name = repo_url.split('/')[-1].replace('.git', '')
-        cloner = RepoCloner()
-        repo_path = cloner.clone_repository(repo_url, repo_name)
-        cloner.clean_repository(repo_path)
         
-        # 2. Parse and Build Knowledge Graph
-        parser = RepoParser(repo_path)
-        graph = parser.parse()
-        
-        # 3. Setup Tools and Orchestrator
-        tools = ToolRegistry(repo_name, graph)
-        orchestrator = AgentOrchestrator(repo_name, tools)
-        
-        async def update_callback(agent_id: str, data: dict):
-            yield f"data: {json.dumps({'agent_id': agent_id, **data})}\n\n"
-            
-        # Since the orchestrator takes a callback, we need a queue to convert it to a generator
+        # Shared queue for all stages (clone, parse, orchestrate)
         queue = asyncio.Queue()
         
         async def queue_callback(agent_id: str, data: dict):
             await queue.put((agent_id, data))
 
-        # Run orchestration in background
+        # Step 1: Clone with progress
+        cloner = RepoCloner()
+        
+        def sync_callback(agent_id, data):
+            # Since cloner is synchronous, we use a thread or simple put if we can
+            # but we need to be careful with async queues in sync functions.
+            # For now, we'll rely on the orchestration wrapper or a simple helper.
+            pass
+
+        # To properly stream from synchronous cloner, we run it in a thread
+        loop = asyncio.get_event_loop()
+        
+        def run_clone():
+            # We create a local function to bridge sync cloner to async queue
+            def progress_wrapper(aid, d):
+                # We can't directly await queue.put from sync
+                # Using loop.call_soon_threadsafe
+                loop.call_soon_threadsafe(queue.put_nowait, (aid, d))
+            
+            repo_path = cloner.clone_repository(repo_url, repo_name, progress_callback=progress_wrapper)
+            cloner.clean_repository(repo_path)
+            return repo_path
+
+        repo_path = await loop.run_in_executor(None, run_clone)
+        
+        # 2. Parse and Build Knowledge Graph
+        await queue.put(("planner", {"status": "in_progress", "result": "Parsing repository and building knowledge graph..."}))
+        parser = RepoParser(repo_path)
+        # Parsing is also typically synchronous/heavy
+        graph = await loop.run_in_executor(None, parser.parse)
+        await queue.put(("planner", {"status": "completed", "result": "Knowledge graph built successfully"}))
+        
+        # 3. Setup Tools and Orchestrator
+        tools = ToolRegistry(repo_name, graph)
+        orchestrator = AgentOrchestrator(repo_name, tools)
+        
+        # Run orchestration
         orchestration_task = asyncio.create_task(orchestrator.orchestrate(queue_callback))
         
         # Stream from queue
         while not orchestration_task.done() or not queue.empty():
             try:
-                # Small timeout to check task status
                 agent_id, data = await asyncio.wait_for(queue.get(), timeout=1.0)
                 yield f"data: {json.dumps({'agent_id': agent_id, **data})}\n\n"
             except asyncio.TimeoutError:

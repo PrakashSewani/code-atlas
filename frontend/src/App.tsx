@@ -10,6 +10,7 @@ import { EngineeringChat } from './components/EngineeringChat';
 import { ActivityFeed } from './components/ActivityFeed';
 import { AnalysisLoader } from './components/AnalysisLoader';
 import { GlobalSearch } from './components/GlobalSearch';
+import { LiveRace } from './components/LiveRace';
 import { useGuidedTour } from './hooks/useGuidedTour';
 import type { DashboardState, AgentData } from './types';
 import axios from 'axios';
@@ -100,6 +101,7 @@ export default function App() {
       summary: { status: 'pending' },
     }
   });
+  const [analysisPhase, setAnalysisPhase] = useState<'idle' | 'cloning' | 'parsing' | 'agents'>('idle');
 
   const healthMetrics = useMemo(() => {
     const scores = {
@@ -179,9 +181,30 @@ export default function App() {
 
   const startAnalysis = async (repoUrl: string) => {
     if (!repoUrl) return;
+    const repoName = repoUrl.split('/').pop()?.replace('.git', '') || 'repository';
+
+    // Set ALL state BEFORE any render cycle to prevent flash
     setUrl(repoUrl);
     setIsAnalyzing(true);
-    const repoName = repoUrl.split('/').pop()?.replace('.git', '') || 'repository';
+    setAnalysisPhase('cloning');
+    
+    // Pre-create or reuse session ID immediately so there's no gap
+    const existingSession = sessions.find(s => s.repoUrl === repoUrl);
+    const sessionId = existingSession?.id || Date.now().toString();
+    setActiveSessionId(sessionId);
+    
+    if (!existingSession) {
+      setSessions(prev => [{
+        id: sessionId,
+        repoName,
+        repoUrl,
+        timestamp: Date.now(),
+        healthScore: 0,
+        language: 'Detected',
+        framework: 'Detected',
+        isFavorite: false
+      }, ...prev]);
+    }
 
     setState({
       repoName,
@@ -213,22 +236,91 @@ export default function App() {
         const chunk = decoder.decode(value);
         for (const line of chunk.split('\n')) {
           if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) continue;
-              setState(prev => ({
-                ...prev,
-                repoName,
-                agents: {
-                  ...prev.agents,
-                  [data.agent_id]: {
-                    status: data.status,
-                    result: data.result,
-                    error: data.error
-                  }
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.error) continue;
+                
+                const agentId = data.agent_id;
+                const provider = data.provider;
+
+                // Track cloning phase
+                if (agentId === 'cloning') {
+                  setAnalysisPhase(data.status === 'completed' ? 'parsing' : 'cloning');
+                  continue;
                 }
-              }));
-            } catch {}
+
+                // Track parsing phase
+                if (agentId === 'planner' && data.status === 'in_progress') {
+                  setAnalysisPhase('parsing');
+                }
+                if (agentId === 'planner' && data.status === 'completed') {
+                  setAnalysisPhase('agents');
+                }
+
+                setState(prev => {
+                  if (provider) {
+                    // Benchmark mode: store per-provider AND sync top-level
+                    const currentAgent = prev.agents[agentId] || { status: 'pending' };
+                    const providerData = {
+                      status: data.status,
+                      result: data.result,
+                      duration: data.duration,
+                      error: data.error
+                    };
+
+                    // Determine top-level status from both providers
+                    const otherProvider = provider === 'cerebras' ? 'mimo' : 'cerebras';
+                    const otherStatus = currentAgent[otherProvider]?.status;
+                    let topLevelStatus = currentAgent.status;
+                    
+                    if (data.status === 'completed') {
+                      // At least one provider completed
+                      topLevelStatus = 'completed';
+                    } else if (data.status === 'in_progress') {
+                      topLevelStatus = 'in_progress';
+                    }
+
+                    // Use the fastest completed provider's result for the top-level result
+                    let topLevelResult = currentAgent.result;
+                    if (data.status === 'completed' && data.result) {
+                      const currentDuration = data.duration || Infinity;
+                      const existingDuration = (currentAgent[provider]?.duration) || Infinity;
+                      if (provider === 'cerebras' || !currentAgent.cerebras?.result) {
+                        topLevelResult = data.result;
+                      }
+                    }
+
+                    return {
+                      ...prev,
+                      repoName,
+                      agents: {
+                        ...prev.agents,
+                        [agentId]: {
+                          ...currentAgent,
+                          status: topLevelStatus,
+                          result: topLevelResult,
+                          [provider]: providerData
+                        }
+                      }
+                    };
+                  }
+
+                  // Legacy path (planner, summary)
+                  return {
+                    ...prev,
+                    repoName,
+                    agents: {
+                      ...prev.agents,
+                      [agentId]: {
+                        status: data.status,
+                        result: data.result,
+                        error: data.error
+                      }
+                    }
+                  };
+                });
+              } catch {}
+
           }
         }
       }
@@ -246,45 +338,15 @@ export default function App() {
         const vis = getScore(prev.agents.vision);
         const overall = Math.round((arch + sec + perf + dep + vis) / 5) || 85;
 
-        setSessions(s => {
-          const existing = s.find(sess => sess.repoUrl === repoUrl);
-          if (existing) {
-            setActiveSessionId(existing.id);
-            return s.map(sess => sess.id === existing.id ? { ...sess, healthScore: overall, timestamp: Date.now() } : sess);
-          }
-          const sessionId = Date.now().toString();
-          setActiveSessionId(sessionId);
-          return [{
-            id: sessionId,
-            repoName,
-            repoUrl,
-            timestamp: Date.now(),
-            healthScore: overall,
-            language: 'Detected',
-            framework: 'Detected',
-            isFavorite: false
-          }, ...s];
-        });
+        setSessions(s => s.map(sess => sess.repoUrl === repoUrl ? { ...sess, healthScore: overall, timestamp: Date.now() } : sess));
         return prev;
       });
 
     } catch (err) {
       console.error("SSE Error:", err);
-      setSessions(prev => {
-        const existing = prev.find(s => s.repoUrl === repoUrl);
-        if (existing) {
-          setActiveSessionId(existing.id);
-          return prev;
-        }
-        const sessionId = Date.now().toString();
-        setActiveSessionId(sessionId);
-        return [{
-          id: sessionId, repoName, repoUrl, timestamp: Date.now(),
-          healthScore: 0, language: 'Unknown', framework: 'Unknown', isFavorite: false
-        }, ...prev];
-      });
     } finally {
       setIsAnalyzing(false);
+      setAnalysisPhase('idle');
     }
   };
 
@@ -293,7 +355,7 @@ export default function App() {
     if (activeSessionId === id) setActiveSessionId(null);
   };
 
-  if (isAnalyzing) return <AnalysisLoader repoUrl={url} />;
+  if (isAnalyzing) return <AnalysisLoader repoUrl={url} phase={analysisPhase} />;
   if (!activeSessionId) return <LandingPage onStartAnalysis={startAnalysis} />;
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
@@ -360,17 +422,20 @@ export default function App() {
 
             {/* Right: Agent Cards */}
             <div className="lg:col-span-2 space-y-6">
-              <div id="tour-agents" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <AgentCard id="architecture" title="Architecture" icon={Cpu} data={state.agents.architecture} forceExpanded={isTourOnAgents} />
-                <AgentCard id="security" title="Security" icon={Shield} data={state.agents.security} forceExpanded={isTourOnAgents} />
-                <AgentCard id="performance" title="Performance" icon={Activity} data={state.agents.performance} forceExpanded={isTourOnAgents} />
-                <AgentCard id="dependency" title="Dependencies" icon={Package} data={state.agents.dependency} forceExpanded={isTourOnAgents} />
-                <AgentCard id="vision" title="Vision Alignment" icon={Eye} data={state.agents.vision} forceExpanded={isTourOnAgents} />
-                <AgentCard id="summary" title="Executive Summary" icon={BarChart3} data={state.agents.summary} forceExpanded={isTourOnAgents} />
-              </div>
+               <div id="tour-agents" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <AgentCard id="architecture" title="Architecture" icon={Cpu} data={state.agents.architecture} forceExpanded={isTourOnAgents} />
+                 <AgentCard id="security" title="Security" icon={Shield} data={state.agents.security} forceExpanded={isTourOnAgents} />
+                 <AgentCard id="performance" title="Performance" icon={Activity} data={state.agents.performance} forceExpanded={isTourOnAgents} />
+                 <AgentCard id="dependency" title="Dependencies" icon={Package} data={state.agents.dependency} forceExpanded={isTourOnAgents} />
+                 <AgentCard id="vision" title="Vision Alignment" icon={Eye} data={state.agents.vision} forceExpanded={isTourOnAgents} />
+                 <AgentCard id="summary" title="Executive Summary" icon={BarChart3} data={state.agents.summary} forceExpanded={isTourOnAgents} />
+               </div>
 
-              {/* Graph */}
-              <div id="tour-graph" className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 min-h-[400px] flex flex-col">
+               <LiveRace agents={state.agents} />
+
+               {/* Graph */}
+               <div id="tour-graph" className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 min-h-[400px] flex flex-col">
+
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Globe className="w-4 h-4 text-blue-500" />

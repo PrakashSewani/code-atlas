@@ -3,10 +3,7 @@ import asyncio
 from typing import Any, Dict
 from app.agents.base import BaseAgent
 from app.core.config import settings
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI(api_key=settings.CEREBRAS_API_KEY, base_url=settings.CEREBRAS_BASE_URL)
-
+from app.core.providers import provider_manager
 
 def _extract_json(content: str) -> Dict[str, Any]:
     """Extract JSON from LLM response."""
@@ -31,8 +28,11 @@ def _extract_json(content: str) -> Dict[str, Any]:
 
 
 class ArchitectureAgent(BaseAgent):
-    async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, context: Dict[str, Any], provider: str = "cerebras") -> Dict[str, Any]:
         repo_name = context.get("repo_name", "unknown")
+        
+        client = provider_manager.get_client(provider)
+        model = provider_manager.get_model(provider)
         
         try:
             tree = self.tools.tool_get_repository_tree()
@@ -68,7 +68,7 @@ Provide a concise architectural analysis as JSON:
 Return ONLY the JSON object."""
 
             response = await client.chat.completions.create(
-                model=settings.GEMMA_MODEL,
+                model=model,
                 messages=[
                     {"role": "system", "content": "You are a Principal Software Architect. Return ONLY valid JSON."},
                     {"role": "user", "content": prompt}

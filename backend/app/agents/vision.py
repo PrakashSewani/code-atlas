@@ -4,10 +4,7 @@ import asyncio
 from typing import Any, Dict, List
 from app.agents.base import BaseAgent
 from app.core.config import settings
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI(api_key=settings.CEREBRAS_API_KEY, base_url=settings.CEREBRAS_BASE_URL)
-
+from app.core.providers import provider_manager
 
 def _extract_json(content: str) -> Dict[str, Any]:
     try:
@@ -34,9 +31,12 @@ class VisionAgent(BaseAgent):
     Multimodal agent that analyzes architecture diagrams and compares with codebase.
     Also performs structural analysis when no image is provided.
     """
-    async def run(self, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def run(self, context: Dict[str, Any], provider: str = "cerebras") -> Dict[str, Any]:
         repo_name = context.get("repo_name", "unknown")
         image_url = context.get("image_url")
+        
+        client = provider_manager.get_client(provider)
+        model = provider_manager.get_model(provider)
         
         try:
             tree = self.tools.tool_get_repository_tree()
@@ -73,7 +73,7 @@ Return JSON:
 }}"""
 
                 response = await client.chat.completions.create(
-                    model=settings.GEMMA_MODEL,
+                    model=model,
                     messages=[{
                         "role": "user",
                         "content": [
@@ -104,7 +104,7 @@ Return JSON:
 Return ONLY the JSON."""
 
                 response = await client.chat.completions.create(
-                    model=settings.GEMMA_MODEL,
+                    model=model,
                     messages=[
                         {"role": "system", "content": "You are a Software Architecture Analyst. Return ONLY valid JSON."},
                         {"role": "user", "content": prompt}

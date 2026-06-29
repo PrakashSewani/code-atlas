@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     CEREBRAS_BASE_URL: str = "https://api.cerebras.ai/v1"
     GEMMA_MODEL: str = "gemma-4-31b"
 
+    # Xiaomi MiMo Config
+    MIMO_API_KEY: str = os.getenv("MIMO_API_KEY", "")
+    MIMO_BASE_URL: str = os.getenv("MIMO_BASE_URL", "https://api.xiaomimimo.com/v1")
+    MIMO_MODEL: str = os.getenv("MIMO_MODEL", "mimo-v1")
+
     class Config:
         env_file = ".env"
 

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class RepoCloner:
     @staticmethod
-    def clone_repository(repo_url: str, repo_name: str) -> Path:
+    def clone_repository(repo_url: str, repo_name: str, progress_callback=None) -> Path:
         """
         Clones a repository to the storage directory. 
         If it already exists, it pulls the latest changes.
@@ -23,14 +23,25 @@ class RepoCloner:
                 return target_dir
             except Exception as e:
                 logger.error(f"Failed to pull updates for {repo_name}: {e}")
-                # If pull fails, we might want to re-clone, but for now we just log
                 return target_dir
 
         logger.info(f"Cloning repository {repo_url} into {target_dir}...")
         try:
+            # Using git.Repo.clone_from doesn't natively provide a simple progress callback for streams
+            # We wrap the clone process. For true progress updates in SSE, 
+            # we notify the callback that cloning has started.
+            if progress_callback:
+                progress_callback("cloning", {"status": "in_progress", "message": "Cloning repository..."})
+            
             git.Repo.clone_from(repo_url, target_dir)
+            
+            if progress_callback:
+                progress_callback("cloning", {"status": "completed", "message": "Repository cloned successfully"})
+            
             return target_dir
         except Exception as e:
+            if progress_callback:
+                progress_callback("cloning", {"status": "error", "message": str(e)})
             logger.error(f"Error cloning repository: {e}")
             raise e
 

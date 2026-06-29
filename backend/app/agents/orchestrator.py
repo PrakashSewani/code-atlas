@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from typing import Any, Dict, List, Callable
 from app.agents.planner import PlannerAgent
 from app.agents.architecture import ArchitectureAgent
@@ -26,17 +27,19 @@ AGENT_MAP = {
 class AgentOrchestrator:
     """
     Manages the parallel execution of agents and streams results to the dashboard.
+    Now supports side-by-side benchmarking between Cerebras and MiMo.
     """
     def __init__(self, repo_name: str, tools: ToolRegistry):
         self.repo_name = repo_name
         self.tools = tools
         self.planner = PlannerAgent(tools)
         self.results: Dict[str, Any] = {}
+        self.benchmark_start_time = 0
 
     async def orchestrate(self, update_callback: Callable):
         """
         1. Plan (or use defaults)
-        2. Dispatch Agents in Parallel
+        2. Dispatch Agents in Parallel (Cerebras vs MiMo)
         3. Stream Updates via callback
         """
         logger.info(f"Starting orchestration for {self.repo_name}")
@@ -55,55 +58,96 @@ class AgentOrchestrator:
         if "vision" not in agents_to_run:
             agents_to_run.append("vision")
         
-        # Phase 2: Parallel Dispatch
+        # START BENCHMARK TIMER
+        self.benchmark_start_time = time.perf_counter()
+        
+        # Phase 2: Parallel Dispatch (Double the tasks for benchmark)
         tasks = []
         for agent_id in agents_to_run:
             if agent_id in AGENT_MAP:
-                tasks.append(self._run_agent_wrapper(agent_id, update_callback))
+                # Race Cerebras and MiMo for every agent
+                tasks.append(self._run_agent_wrapper(agent_id, "cerebras", update_callback))
+                tasks.append(self._run_agent_wrapper(agent_id, "mimo", update_callback))
             else:
-                # Skip unknown agents but mark as completed
-                await update_callback(agent_id, {"status": "completed", "result": f"Agent '{agent_id}' not implemented"})
+                # Skip unknown agents
+                await update_callback(agent_id, {
+                    "status": "completed", 
+                    "result": {"cerebras": {"message": "n/a"}, "mimo": {"message": "n/a"}}
+                })
         
-        # Run all agents in parallel with timeout
+        # Run all agents in parallel
         if tasks:
             try:
                 await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=120.0)
             except asyncio.TimeoutError:
                 logger.warning("Some agents timed out")
         
+        # Stop timer is implicitly handled when we calculate overall duration later or in summary
+        duration = time.perf_counter() - self.benchmark_start_time
+        
         # Phase 3: Final Summary
         completed = len([r for r in self.results.values() if r])
         await update_callback("summary", {
             "status": "completed", 
-            "result": f"Analysis complete. {completed}/{len(agents_to_run)} agents finished successfully."
+            "result": f"Analysis complete. {completed}/{len(agents_to_run)} agents finished successfully.",
+            "total_duration": duration
         })
 
-    async def _run_agent_wrapper(self, agent_id: str, update_callback: Callable):
+    async def _run_agent_wrapper(self, agent_id: str, provider: str, update_callback: Callable):
         """
-        Wrapper to handle agent instantiation and result reporting.
+        Wrapper to handle agent instantiation and result reporting for a specific provider.
         """
         try:
-            await update_callback(agent_id, {"status": "in_progress"})
+            # Initial update for the specific provider
+            await update_callback(agent_id, {
+                "provider": provider,
+                "status": "in_progress"
+            })
             
             agent_cls = AGENT_MAP.get(agent_id)
             if not agent_cls:
-                await update_callback(agent_id, {"status": "completed", "result": {"score": 0, "message": "Agent not found"}})
                 return
             
             agent = agent_cls(agent_id, self.tools)
             
-            # Run with timeout
+            start_time = time.perf_counter()
             try:
                 result = await asyncio.wait_for(
-                    agent.run({"repo_name": self.repo_name}),
+                    agent.run({"repo_name": self.repo_name}, provider=provider),
                     timeout=60.0
                 )
             except asyncio.TimeoutError:
                 result = {"score": 50, "message": "Analysis timed out", "timeout": True}
+            except Exception as e:
+                result = {"score": 0, "error": str(e), "failure": True}
+                
+            end_time = time.perf_counter()
+            duration = end_time - start_time
             
-            self.results[agent_id] = result
-            await update_callback(agent_id, {"status": "completed", "result": result})
+            # Store results in a structured way for benchmarking
+            if agent_id not in self.results:
+                self.results[agent_id] = {}
+            
+            self.results[agent_id][provider] = {
+                "result": result,
+                "duration": duration
+            }
+            
+            await update_callback(agent_id, {
+                "provider": provider,
+                "status": "completed", 
+                "result": result,
+                "duration": duration
+            })
             
         except Exception as e:
-            logger.error(f"Agent {agent_id} failed: {e}")
-            await update_callback(agent_id, {"status": "completed", "result": {"score": 0, "error": str(e)}})
+            logger.error(f"Agent {agent_id} ({provider}) failed: {e}")
+            if agent_id not in self.results:
+                self.results[agent_id] = {}
+            self.results[agent_id][provider] = {"status": "error", "error": str(e), "duration": 0}
+            await update_callback(agent_id, {
+                "provider": provider,
+                "status": "completed", 
+                "result": {"score": 0, "error": str(e)},
+                "duration": 0
+            })
