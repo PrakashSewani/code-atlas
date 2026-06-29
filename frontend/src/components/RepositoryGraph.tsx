@@ -44,6 +44,7 @@ const RepoNode = ({ data }: { data: RepoNodeData }) => {
   );
 };
 
+// MUST be outside component to avoid React Flow warning
 const nodeTypes = { repoNode: RepoNode };
 
 function extractServices(agentResult: unknown): string[] {
@@ -63,7 +64,6 @@ function extractPatterns(agentResult: unknown): string[] {
 
 export function RepositoryGraph({ agents }: { agents: Record<string, AgentData> }) {
   const archResult = agents.architecture?.result;
-
   const services = useMemo(() => extractServices(archResult), [archResult]);
   const patterns = useMemo(() => extractPatterns(archResult), [archResult]);
 
@@ -128,20 +128,19 @@ export function RepositoryGraph({ agents }: { agents: Record<string, AgentData> 
   }, [services, patterns]);
 
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: '400px' }} className="bg-slate-950/50 rounded-2xl overflow-hidden">
+    <div style={{ width: '100%', height: '100%', minHeight: '400px', background: 'rgba(2, 6, 23, 0.5)' }} className="rounded-2xl overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
         fitView
-        className="bg-transparent"
+        style={{ background: 'transparent' }}
       >
         <Background color="#1e293b" gap={20} />
-        <Controls className="bg-slate-900 border-slate-800 fill-white" />
+        <Controls />
         <MiniMap
           nodeColor="#1e293b"
           maskColor="rgba(0,0,0,0.5)"
-          className="bg-slate-900 border-slate-800"
         />
       </ReactFlow>
     </div>
