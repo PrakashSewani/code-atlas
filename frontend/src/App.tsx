@@ -379,7 +379,7 @@ export default function App() {
                   <Button variant="ghost" size="sm" className="h-6 text-[10px]">Refresh</Button>
                 </div>
                 <div className="flex-1 min-h-0">
-                  <RepositoryGraph repoName={state.repoName} />
+                  <RepositoryGraph agents={state.agents} />
                 </div>
               </div>
             </div>

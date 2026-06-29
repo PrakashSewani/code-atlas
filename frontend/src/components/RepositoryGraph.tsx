@@ -11,17 +11,27 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { cn } from '../lib/utils';
-import { Cpu, Database, Globe, Shield, Zap } from 'lucide-react';
+import { Cpu, Database, Globe, Shield, Zap, FileCode, Layers, Box, Server } from 'lucide-react';
+import type { AgentData } from '../types';
 
-const RepoNode = ({ data }: { data: { label: string; description: string; type: string; icon: React.ReactNode } }) => {
+interface RepoNodeData {
+  label: string;
+  description: string;
+  type: string;
+  icon: React.ReactNode;
+}
+
+const RepoNode = ({ data }: { data: RepoNodeData }) => {
   return (
-    <div className="px-4 py-3 rounded-2xl bg-slate-900 border border-slate-700 shadow-xl min-w-[150px] text-center group hover:border-blue-500 transition-all">
+    <div className="px-4 py-3 rounded-2xl bg-slate-900 border border-slate-700 shadow-xl min-w-[140px] text-center group hover:border-blue-500 transition-all">
       <Handle type="target" position={Position.Top} className="w-2 h-2 bg-slate-600" />
       <div className="flex flex-col items-center gap-2">
         <div className={cn(
           "p-2 rounded-lg",
           data.type === 'db' ? "bg-yellow-500/20 text-yellow-500" :
           data.type === 'api' ? "bg-blue-500/20 text-blue-500" :
+          data.type === 'security' ? "bg-red-500/20 text-red-500" :
+          data.type === 'frontend' ? "bg-green-500/20 text-green-500" :
           "bg-indigo-500/20 text-indigo-500"
         )}>
           {data.icon}
@@ -36,21 +46,86 @@ const RepoNode = ({ data }: { data: { label: string; description: string; type: 
 
 const nodeTypes = { repoNode: RepoNode };
 
-export function RepositoryGraph({ repoName: _repoName }: { repoName: string }) {
-  const nodes: Node[] = useMemo(() => [
-    { id: 'frontend', type: 'repoNode', position: { x: 250, y: 0 }, data: { label: 'Frontend', description: 'React / Tailwind', type: 'api', icon: <Globe className="w-4 h-4" /> } },
-    { id: 'api', type: 'repoNode', position: { x: 250, y: 150 }, data: { label: 'API Gateway', description: 'FastAPI / Python', type: 'api', icon: <Zap className="w-4 h-4" /> } },
-    { id: 'auth', type: 'repoNode', position: { x: 100, y: 300 }, data: { label: 'Auth Service', description: 'JWT / OAuth2', type: 'security', icon: <Shield className="w-4 h-4" /> } },
-    { id: 'db', type: 'repoNode', position: { x: 400, y: 300 }, data: { label: 'Main Database', description: 'PostgreSQL', type: 'db', icon: <Database className="w-4 h-4" /> } },
-    { id: 'cache', type: 'repoNode', position: { x: 550, y: 150 }, data: { label: 'Redis Cache', description: 'In-memory Store', type: 'api', icon: <Cpu className="w-4 h-4" /> } },
-  ], []);
+function extractServices(agentResult: unknown): string[] {
+  if (!agentResult || typeof agentResult !== 'object') return [];
+  const r = agentResult as Record<string, unknown>;
+  if (Array.isArray(r.services)) return r.services.slice(0, 8) as string[];
+  if (Array.isArray(r.layers)) return r.layers.slice(0, 8) as string[];
+  return [];
+}
 
-  const edges: Edge[] = useMemo(() => [
-    { id: 'e1-2', source: 'frontend', target: 'api', animated: true, markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#3b82f6' } },
-    { id: 'e2-3', source: 'api', target: 'auth', label: 'verify', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#6366f1' } },
-    { id: 'e2-4', source: 'api', target: 'db', label: 'query', markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#6366f1' } },
-    { id: 'e2-5', source: 'api', target: 'cache', label: 'cache', animated: true, markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#3b82f6' } },
-  ], []);
+function extractPatterns(agentResult: unknown): string[] {
+  if (!agentResult || typeof agentResult !== 'object') return [];
+  const r = agentResult as Record<string, unknown>;
+  if (Array.isArray(r.patterns)) return r.patterns.slice(0, 4) as string[];
+  return [];
+}
+
+export function RepositoryGraph({ agents }: { agents: Record<string, AgentData> }) {
+  const archResult = agents.architecture?.result;
+
+  const services = useMemo(() => extractServices(archResult), [archResult]);
+  const patterns = useMemo(() => extractPatterns(archResult), [archResult]);
+
+  const { nodes, edges } = useMemo(() => {
+    const n: Node[] = [];
+    const e: Edge[] = [];
+
+    // Root node
+    n.push({
+      id: 'root',
+      type: 'repoNode',
+      position: { x: 300, y: 0 },
+      data: { label: 'Repository', description: 'Root Module', type: 'default', icon: <Box className="w-4 h-4" /> }
+    });
+
+    if (services.length === 0) {
+      // Default nodes when no analysis data
+      const defaults = [
+        { id: 'frontend', label: 'Frontend', desc: 'UI Layer', type: 'frontend', icon: <Globe className="w-4 h-4" />, x: 100, y: 150 },
+        { id: 'api', label: 'API Layer', desc: 'Backend Services', type: 'api', icon: <Server className="w-4 h-4" />, x: 300, y: 150 },
+        { id: 'db', label: 'Database', desc: 'Data Storage', type: 'db', icon: <Database className="w-4 h-4" />, x: 500, y: 150 },
+      ];
+      defaults.forEach(d => {
+        n.push({ id: d.id, type: 'repoNode', position: { x: d.x, y: d.y }, data: { label: d.label, description: d.desc, type: d.type, icon: d.icon } });
+        e.push({ id: `e-root-${d.id}`, source: 'root', target: d.id, animated: true, markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#3b82f6' } });
+      });
+    } else {
+      // Dynamic nodes from architecture analysis
+      const icons = [Globe, Server, Shield, Database, Zap, Cpu, FileCode, Layers];
+      const types = ['frontend', 'api', 'security', 'db', 'api', 'default', 'default', 'default'];
+
+      services.forEach((svc, i) => {
+        const col = i % 3;
+        const row = Math.floor(i / 3);
+        const nodeId = `svc-${i}`;
+        const IconComp = icons[i % icons.length];
+
+        n.push({
+          id: nodeId,
+          type: 'repoNode',
+          position: { x: 100 + col * 200, y: 150 + row * 150 },
+          data: {
+            label: typeof svc === 'string' ? svc : `Service ${i}`,
+            description: patterns[i] || 'Module',
+            type: types[i % types.length],
+            icon: <IconComp className="w-4 h-4" />
+          }
+        });
+
+        e.push({
+          id: `e-root-${nodeId}`,
+          source: 'root',
+          target: nodeId,
+          animated: i < 3,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: i < 3 ? '#3b82f6' : '#6366f1' }
+        });
+      });
+    }
+
+    return { nodes: n, edges: e };
+  }, [services, patterns]);
 
   return (
     <div style={{ width: '100%', height: '100%', minHeight: '400px' }} className="bg-slate-950/50 rounded-2xl overflow-hidden">

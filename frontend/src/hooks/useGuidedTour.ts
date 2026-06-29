@@ -61,7 +61,7 @@ export function useGuidedTour() {
           element: '#tour-graph',
           popover: {
             title: 'Repository Graph',
-            description: 'Interactive visualization of your codebase architecture. Zoom, pan, and click nodes to explore relationships.',
+            description: 'Interactive visualization of your codebase architecture built from the analysis results. Nodes represent services and modules. Zoom, pan, and click to explore.',
             side: 'top',
           },
         },
